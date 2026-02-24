@@ -1,6 +1,6 @@
 "use client";
 
-import { Refrigerator, AlertCircle, Calendar, Clock, ChefHat } from 'lucide-react';
+import { Refrigerator, AlertCircle, Calendar, Clock, ChefHat, LogOut } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Ingredient, AppTab, RecipeWithMatch } from '@/types';
 import { StatusBadge } from './StatusBadge';
@@ -10,17 +10,26 @@ type HomeTabProps = {
   expiringSoon: Ingredient[];
   recipeMatches: RecipeWithMatch[];
   onNavigate: (tab: AppTab) => void;
+  onLogout: () => void;
 };
 
-export const HomeTab = ({ ingredients, expiringSoon, recipeMatches, onNavigate }: HomeTabProps) => (
+export const HomeTab = ({ ingredients, expiringSoon, recipeMatches, onNavigate, onLogout }: HomeTabProps) => (
   <motion.div
     initial={{ opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
     className="space-y-8 pb-24"
   >
-    <header className="px-6 pt-12 pb-4">
-      <h1 className="text-3xl font-bold tracking-tight text-slate-900">Freshpick</h1>
-      <p className="text-slate-500 text-sm mt-1">Reduce waste, eat better.</p>
+    <header className="px-6 pt-12 pb-4 flex items-start justify-between">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Freshpick</h1>
+        <p className="text-slate-500 text-sm mt-1">Reduce waste, eat better.</p>
+      </div>
+      <button
+        onClick={onLogout}
+        className="mt-1 w-10 h-10 bg-white rounded-full flex items-center justify-center ios-shadow text-slate-400 active:scale-95 transition-transform"
+      >
+        <LogOut size={18} />
+      </button>
     </header>
 
     {/* Quick Stats */}

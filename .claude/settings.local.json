@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd /c/Users/user/Desktop/projects/freshpick && npx tsc --noEmit 2>&1)"
+    ]
+  }
+}
