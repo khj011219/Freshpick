@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { supabase } from "@/lib/supabase";
 import { Ingredient, Recipe, RecipeWithMatch, AppTab } from '@/types';
+import { LoginScreen } from '@/components/LoginScreen';
 import { HomeTab } from '@/components/HomeTab';
 import { IngredientsTab } from '@/components/IngredientsTab';
 import { RecipesTab } from '@/components/RecipesTab';
@@ -10,21 +12,43 @@ import { NavBar } from '@/components/NavBar';
 import { AddIngredientModal } from '@/components/AddIngredientModal';
 
 export default function Home() {
+  const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // 세션 초기화 및 변경 감지
   useEffect(() => {
-    fetchIngredients();
-    fetchRecipes();
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
+  // 로그인 상태가 되면 데이터 로드
+  useEffect(() => {
+    if (session) {
+      fetchIngredients();
+      fetchRecipes();
+    } else {
+      setIngredients([]);
+      setRecipes([]);
+    }
+  }, [session]);
+
   const fetchIngredients = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
     const { data, error } = await supabase
       .from("ingredients")
       .select("*")
+      .eq("user_id", session.user.id)
       .order("expire_date", { ascending: true });
 
     if (!error && data) {
@@ -44,9 +68,12 @@ export default function Home() {
   const addIngredient = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
 
     const { error } = await supabase.from("ingredients").insert([
       {
+        user_id: session.user.id,
         name: formData.get("name"),
         quantity: Number(formData.get("quantity")),
         unit: formData.get("unit"),
@@ -104,6 +131,24 @@ export default function Home() {
     return diff >= 0 && diff <= 3;
   });
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  // 세션 확인 중
+  if (session === undefined) {
+    return (
+      <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // 미로그인
+  if (session === null) {
+    return <LoginScreen />;
+  }
+
   return (
     <div className="max-w-md mx-auto min-h-screen bg-slate-50 relative overflow-x-hidden font-sans">
       <main>
@@ -113,6 +158,7 @@ export default function Home() {
             expiringSoon={expiringSoon}
             recipeMatches={recipeMatches}
             onNavigate={setActiveTab}
+            onLogout={handleLogout}
           />
         )}
         {activeTab === 'ingredients' && (
@@ -125,10 +171,7 @@ export default function Home() {
           />
         )}
         {activeTab === 'recipes' && (
-          <RecipesTab
-            recipeMatches={recipeMatches}
-            ingredients={ingredients}
-          />
+          <RecipesTab />
         )}
       </main>
 
