@@ -1,6 +1,7 @@
 "use client";
 
-import { Refrigerator, AlertCircle, Calendar, Clock, ChefHat, LogOut } from 'lucide-react';
+import Link from 'next/link';
+import { Refrigerator, AlertCircle, Calendar, ChefHat, LogOut } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Ingredient, AppTab, RecipeWithMatch } from '@/types';
 import { StatusBadge } from './StatusBadge';
@@ -101,17 +102,20 @@ export const HomeTab = ({ ingredients, expiringSoon, recipeMatches, onNavigate, 
       </div>
       <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-6 px-6">
         {recipeMatches.slice(0, 3).map(recipe => (
-          <div
+          <Link
             key={recipe.id}
-            className="min-w-[280px] bg-white rounded-3xl ios-shadow overflow-hidden border border-slate-100 group"
+            href={`/recipes/${recipe.id}`}
+            className="block min-w-[280px] bg-white rounded-3xl ios-shadow overflow-hidden border border-slate-100 group active:scale-[0.98] transition-transform"
           >
-            <div className="relative h-40">
-              <img
-                src={recipe.image_url}
-                alt={recipe.title}
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-              />
+            <div className="relative h-40 bg-slate-100">
+              {recipe.image_url && (
+                <img
+                  src={recipe.image_url}
+                  alt={recipe.title}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              )}
               <div className="absolute top-3 right-3 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-[10px] font-bold text-brand-600 shadow-sm border border-white/20">
                 {recipe.matchRate}% Match
               </div>
@@ -121,11 +125,10 @@ export const HomeTab = ({ ingredients, expiringSoon, recipeMatches, onNavigate, 
                 {recipe.title}
               </h3>
               <div className="flex items-center gap-3 mt-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                <span className="flex items-center gap-1"><Clock size={12} /> recipe.prepTime m</span>
-                <span className="flex items-center gap-1"><ChefHat size={12} /> recipe.difficulty</span>
+                <span className="flex items-center gap-1"><ChefHat size={12} /> {recipe.matchRate}% Match</span>
               </div>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </section>

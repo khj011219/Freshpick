@@ -4,6 +4,7 @@ import { Search, Plus, Refrigerator, Trash2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Ingredient } from '@/types';
 import { StatusBadge } from './StatusBadge';
+import { getExpirationStatus, ExpirationStatus } from '@/utils/expiration';
 
 type IngredientsTabProps = {
   ingredients: Ingredient[];
@@ -11,6 +12,13 @@ type IngredientsTabProps = {
   onSearchChange: (query: string) => void;
   onAddClick: () => void;
   onRemove: (id: string) => void;
+};
+
+const cardStyles: Record<ExpirationStatus, string> = {
+  urgent:  "bg-red-100 border-red-400",
+  warning: "bg-yellow-100 border-yellow-400",
+  safe:    "bg-white border-slate-100",
+  expired: "bg-gray-200 border-slate-200",
 };
 
 export const IngredientsTab = ({
@@ -51,41 +59,46 @@ export const IngredientsTab = ({
       {ingredients
         .filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()))
         .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime())
-        .map(ing => (
-          <motion.div
-            layout
-            key={ing.id}
-            className="bg-white p-4 rounded-2xl ios-shadow border border-slate-100 flex items-center justify-between group"
-          >
-            <div className="flex items-center gap-4">
-              <div
-                className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-                  ing.category === 'Produce' ? 'bg-emerald-50 text-emerald-500' :
-                  ing.category === 'Dairy'   ? 'bg-blue-50 text-blue-500' :
-                  ing.category === 'Meat'    ? 'bg-rose-50 text-rose-500' :
-                                               'bg-slate-50 text-slate-500'
-                }`}
-              >
-                <Refrigerator size={24} />
+        .map(ing => {
+          const status = getExpirationStatus(ing.expiryDate);
+          return (
+            <motion.div
+              layout
+              key={ing.id}
+              className={`p-4 rounded-2xl ios-shadow border flex items-center justify-between group ${cardStyles[status]}`}
+            >
+              <div className="flex items-center gap-4">
+                <div
+                  className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                    ing.category === 'Produce' ? 'bg-emerald-50 text-emerald-500' :
+                    ing.category === 'Dairy'   ? 'bg-blue-50 text-blue-500' :
+                    ing.category === 'Meat'    ? 'bg-rose-50 text-rose-500' :
+                                                 'bg-slate-50 text-slate-500'
+                  }`}
+                >
+                  <Refrigerator size={24} />
+                </div>
+                <div>
+                  <h3 className={`font-bold ${status === 'expired' ? 'text-red-600' : 'text-slate-900'}`}>
+                    {ing.name}
+                  </h3>
+                  <p className="text-xs text-slate-400 font-medium">
+                    {ing.quantity} {ing.unit} • {ing.category}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-slate-900">{ing.name}</h3>
-                <p className="text-xs text-slate-400 font-medium">
-                  {ing.quantity} {ing.unit} • {ing.category}
-                </p>
+              <div className="flex items-center gap-3">
+                <StatusBadge expiryDate={ing.expiryDate} />
+                <button
+                  onClick={() => onRemove(ing.id)}
+                  className="p-2 text-slate-300 hover:text-danger-500 transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  <Trash2 size={18} />
+                </button>
               </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <StatusBadge expiryDate={ing.expiryDate} />
-              <button
-                onClick={() => onRemove(ing.id)}
-                className="p-2 text-slate-300 hover:text-danger-500 transition-colors opacity-0 group-hover:opacity-100"
-              >
-                <Trash2 size={18} />
-              </button>
-            </div>
-          </motion.div>
-        ))}
+            </motion.div>
+          );
+        })}
 
       {ingredients.length === 0 && (
         <div className="text-center py-20">

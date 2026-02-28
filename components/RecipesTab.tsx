@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Clock, ChevronRight, AlertCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { supabase } from '@/lib/supabase';
@@ -90,17 +91,20 @@ export const RecipesTab = () => {
         {recommendations.map(recipe => {
           const matchPct = Math.round(recipe.match_rate * 100);
           return (
-            <div
+            <Link
               key={recipe.recipe_id}
-              className="bg-white rounded-[32px] ios-shadow overflow-hidden border border-slate-100"
+              href={`/recipes/${recipe.recipe_id}`}
+              className="block bg-white rounded-[32px] ios-shadow overflow-hidden border border-slate-100 active:scale-[0.98] transition-transform"
             >
-              <div className="relative h-56">
-                <img
-                  src={recipe.image_url}
-                  alt={recipe.title}
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
+              <div className="relative h-56 bg-slate-100">
+                {recipe.image_url && (
+                  <img
+                    src={recipe.image_url}
+                    alt={recipe.title}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                )}
                 <div className="absolute top-4 right-4 bg-brand-600 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-lg shadow-brand-600/20">
                   {matchPct}% Match
                 </div>
@@ -149,7 +153,7 @@ export const RecipesTab = () => {
                   </div>
                 )}
               </div>
-            </div>
+            </Link>
           );
         })}
       </div>
