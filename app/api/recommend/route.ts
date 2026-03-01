@@ -39,6 +39,8 @@ type RecommendationResult = {
   image_url: string;
   score: number;
   match_rate: number;
+  total_ingredients: number;
+  matched_ingredients: number;
   missing_ingredients: string[];
   expiring_ingredients: string[];
 };
@@ -153,6 +155,8 @@ export async function GET(request: NextRequest) {
       image_url: recipe.image_url,
       score,
       match_rate: Math.round(matchRate * 100) / 100,
+      total_ingredients: totalCount,
+      matched_ingredients: matchedCount,
       missing_ingredients: missingIngredients,
       expiring_ingredients: expiringIngredients,
     };

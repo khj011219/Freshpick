@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from "@/lib/supabase";
 import { Ingredient, Recipe, RecipeWithMatch, AppTab } from '@/types';
@@ -11,9 +12,11 @@ import { RecipesTab } from '@/components/RecipesTab';
 import { NavBar } from '@/components/NavBar';
 import { AddIngredientModal } from '@/components/AddIngredientModal';
 
-export default function Home() {
+function HomeApp() {
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get('tab') as AppTab) || 'home';
   const [session, setSession] = useState<Session | null | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<AppTab>('home');
+  const [activeTab, setActiveTab] = useState<AppTab>(initialTab);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [isAdding, setIsAdding] = useState(false);
@@ -171,7 +174,10 @@ export default function Home() {
           />
         )}
         {activeTab === 'recipes' && (
-          <RecipesTab />
+          <RecipesTab
+            ingredientCount={ingredients.length}
+            urgentCount={expiringSoon.length}
+          />
         )}
       </main>
 
@@ -183,5 +189,17 @@ export default function Home() {
         onSubmit={addIngredient}
       />
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <HomeApp />
+    </Suspense>
   );
 }
