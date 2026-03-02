@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { ChevronLeft, Plus, X, ChefHat, ListOrdered, Info } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type IngredientInput = {
   name: string;
@@ -16,7 +16,7 @@ type IngredientInput = {
 
 type IngredientDraft = {
   name: string;
-  quantity: string;   // input 중에는 string으로 관리
+  quantity: string;
   unit: string;
   isEssential: boolean;
 };
@@ -30,23 +30,14 @@ const EMPTY_INGREDIENT: IngredientDraft = {
   isEssential: true,
 };
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function NewRecipePage() {
+export default function EditRecipePage() {
   const router = useRouter();
+  const { id } = useParams<{ id: string }>();
 
-  // 관리자 여부 확인 (undefined = 확인 중, false = 비관리자)
   const [isAdmin, setIsAdmin] = useState<boolean | undefined>(undefined);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user?.app_metadata?.role === 'admin') {
-        setIsAdmin(true);
-      } else {
-        router.replace('/');
-      }
-    });
-  }, [router]);
+  const [loadingData, setLoadingData] = useState(true);
 
   // 기본 정보
   const [title, setTitle] = useState('');
@@ -64,11 +55,52 @@ export default function NewRecipePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ─── Ingredient handlers ────────────────────────────────────────────────
+  // ─── 관리자 확인 + 기존 데이터 로드 ──────────────────────────────────────
+
+  useEffect(() => {
+    async function init() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.app_metadata?.role !== 'admin') {
+        router.replace('/');
+        return;
+      }
+      setIsAdmin(true);
+
+      const { data, error: fetchError } = await supabase
+        .from('recipes')
+        .select('*, recipe_ingredients(*)')
+        .eq('id', id)
+        .single();
+
+      if (fetchError || !data) {
+        setError('레시피를 불러오는 데 실패했습니다.');
+        setLoadingData(false);
+        return;
+      }
+
+      setTitle(data.title ?? '');
+      setDescription(data.description ?? '');
+      setImageUrl(data.image_url ?? '');
+      setSteps(Array.isArray(data.steps) ? data.steps : []);
+      setIngredients(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (data.recipe_ingredients ?? []).map((ri: any) => ({
+          name: ri.ingredient_name,
+          quantity: ri.quantity ?? 0,
+          unit: ri.unit ?? '',
+          isEssential: ri.is_essential ?? true,
+        }))
+      );
+      setLoadingData(false);
+    }
+
+    init();
+  }, [id, router]);
+
+  // ─── Ingredient handlers ──────────────────────────────────────────────────
 
   const addIngredient = () => {
     if (!draft.name.trim()) return;
-
     setIngredients(prev => [
       ...prev,
       {
@@ -85,7 +117,7 @@ export default function NewRecipePage() {
     setIngredients(prev => prev.filter((_, i) => i !== index));
   };
 
-  // ─── Step handlers ──────────────────────────────────────────────────────
+  // ─── Step handlers ────────────────────────────────────────────────────────
 
   const addStep = () => {
     if (!stepDraft.trim()) return;
@@ -97,7 +129,7 @@ export default function NewRecipePage() {
     setSteps(prev => prev.filter((_, i) => i !== index));
   };
 
-  // ─── Validation ─────────────────────────────────────────────────────────
+  // ─── Validation ───────────────────────────────────────────────────────────
 
   const validate = (): string | null => {
     if (!title.trim()) return '레시피 이름을 입력해주세요.';
@@ -106,7 +138,7 @@ export default function NewRecipePage() {
     return null;
   };
 
-  // ─── Save ───────────────────────────────────────────────────────────────
+  // ─── Save ─────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
     const validationError = validate();
@@ -118,30 +150,40 @@ export default function NewRecipePage() {
     setSaving(true);
     setError(null);
 
-    // 1. recipes 테이블에 삽입
-    const { data: recipe, error: recipeError } = await supabase
+    // 1. recipes 테이블 업데이트
+    const { error: recipeError } = await supabase
       .from('recipes')
-      .insert({
+      .update({
         title: title.trim(),
         description: description.trim() || null,
         image_url: imageUrl.trim() === '' ? null : imageUrl.trim(),
         steps,
       })
-      .select()
-      .single();
+      .eq('id', id);
 
-    if (recipeError || !recipe) {
-      setError('레시피 저장에 실패했습니다. 다시 시도해주세요.');
+    if (recipeError) {
+      setError('레시피 수정에 실패했습니다. 다시 시도해주세요.');
       setSaving(false);
       return;
     }
 
-    // 2. recipe_ingredients 테이블에 일괄 삽입
+    // 2. recipe_ingredients: 기존 삭제 후 재삽입
+    const { error: deleteError } = await supabase
+      .from('recipe_ingredients')
+      .delete()
+      .eq('recipe_id', id);
+
+    if (deleteError) {
+      setError('재료 초기화에 실패했습니다. 다시 시도해주세요.');
+      setSaving(false);
+      return;
+    }
+
     const { error: ingredientsError } = await supabase
       .from('recipe_ingredients')
       .insert(
         ingredients.map(i => ({
-          recipe_id: recipe.id,
+          recipe_id: id,
           ingredient_name: i.name,
           quantity: i.quantity,
           unit: i.unit,
@@ -152,26 +194,16 @@ export default function NewRecipePage() {
     setSaving(false);
 
     if (ingredientsError) {
-      setError('재료 저장에 실패했습니다. 레시피는 저장됐으나 재료를 다시 확인해주세요.');
+      setError('재료 저장에 실패했습니다. 레시피는 수정됐으나 재료를 다시 확인해주세요.');
       return;
     }
 
-    alert(`"${recipe.title}" 레시피가 저장됐습니다!`);
-
-    // 폼 초기화
-    setTitle('');
-    setDescription('');
-    setImageUrl('');
-    setIngredients([]);
-    setSteps([]);
-    setDraft(EMPTY_INGREDIENT);
-    setStepDraft('');
+    router.push('/?tab=recipes');
   };
 
-  // ─── Render ─────────────────────────────────────────────────────────────
+  // ─── Render ───────────────────────────────────────────────────────────────
 
-  // 세션 확인 중 or 비관리자(리디렉트 진행 중)
-  if (!isAdmin) {
+  if (!isAdmin || loadingData) {
     return (
       <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
@@ -189,7 +221,7 @@ export default function NewRecipePage() {
         >
           <ChevronLeft size={20} className="text-slate-700" />
         </button>
-        <h1 className="text-xl font-bold text-slate-900">레시피 추가</h1>
+        <h1 className="text-xl font-bold text-slate-900">레시피 수정</h1>
       </header>
 
       <div className="px-6 space-y-6 pt-2">
@@ -227,7 +259,6 @@ export default function NewRecipePage() {
 
         {/* ── 재료 카드 ──────────────────────────────────────────────────── */}
         <Card icon={<ChefHat size={16} />} title="재료">
-          {/* 재료 입력 폼 */}
           <div className="grid grid-cols-2 gap-2">
             <Field label="재료명 *" className="col-span-2">
               <input
@@ -260,7 +291,6 @@ export default function NewRecipePage() {
             </Field>
           </div>
 
-          {/* 핵심 재료 토글 */}
           <label className="flex items-center gap-2 cursor-pointer mt-1">
             <input
               type="checkbox"
@@ -281,7 +311,6 @@ export default function NewRecipePage() {
             재료 추가
           </button>
 
-          {/* 추가된 재료 목록 */}
           {ingredients.length > 0 && (
             <ul className="mt-4 space-y-2">
               {ingredients.map((ing, i) => (
@@ -345,7 +374,6 @@ export default function NewRecipePage() {
             단계 추가
           </button>
 
-          {/* 추가된 단계 목록 */}
           {steps.length > 0 && (
             <ol className="mt-4 space-y-2">
               {steps.map((step, i) => (
@@ -384,7 +412,7 @@ export default function NewRecipePage() {
           disabled={saving}
           className="w-full py-4 rounded-2xl bg-brand-600 text-white text-base font-bold disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] transition-transform shadow-lg shadow-brand-600/20"
         >
-          {saving ? '저장 중...' : '레시피 저장'}
+          {saving ? '저장 중...' : '수정 완료'}
         </button>
       </div>
     </div>

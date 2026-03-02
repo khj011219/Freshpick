@@ -177,6 +177,7 @@ function HomeApp() {
           <RecipesTab
             ingredientCount={ingredients.length}
             urgentCount={expiringSoon.length}
+            isAdmin={session?.user?.app_metadata?.role === 'admin'}
           />
         )}
       </main>

@@ -4,35 +4,38 @@ import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { motion } from 'motion/react';
 import { AlertCircle, Refrigerator, Clock, ChefHat, ChevronDown, Plus } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { RecipeCard } from './RecipeCard';
 import { RecommendedRecipe } from '@/types';
+import { supabase } from '@/lib/supabase';
 
 type SortKey = 'urgent' | 'matchRate' | 'score';
 
 type RecipesTabProps = {
   ingredientCount: number;
   urgentCount: number;
+  isAdmin: boolean;
 };
 
-export const RecipesTab = ({ ingredientCount, urgentCount }: RecipesTabProps) => {
+export const RecipesTab = ({ ingredientCount, urgentCount, isAdmin }: RecipesTabProps) => {
   const [recommendations, setRecommendations] = useState<RecommendedRecipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('urgent');
 
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('정말 삭제하시겠습니까?')) return;
+    const { error } = await supabase.from('recipes').delete().eq('id', id);
+    if (error) {
+      alert('삭제에 실패했습니다.');
+      return;
+    }
+    setRecommendations(prev => prev.filter(r => r.id !== id));
+  };
+
   useEffect(() => {
     async function load() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setError('로그인이 필요합니다.');
-        setLoading(false);
-        return;
-      }
       try {
-        const res = await fetch('/api/recommend', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
+        const res = await fetch('/api/recommend');
         if (!res.ok) throw new Error();
         const data = await res.json();
 
@@ -43,6 +46,7 @@ export const RecipesTab = ({ ingredientCount, urgentCount }: RecipesTabProps) =>
             id: r.recipe_id,
             title: r.title,
             image_url: r.image_url || null,
+            isAuthenticated: r.is_authenticated,
             score: r.score,
             matchRate: Math.round(r.match_rate * 100),
             totalIngredients: r.total_ingredients,
@@ -118,12 +122,14 @@ export const RecipesTab = ({ ingredientCount, urgentCount }: RecipesTabProps) =>
           <h1 className="text-2xl font-bold text-slate-900">추천 결과</h1>
           <p className="text-slate-400 text-sm mt-1">보유 재료를 기반으로 추천된 레시피예요.</p>
         </div>
-        <Link
-          href="/recipes/new"
-          className="mt-1 w-10 h-10 bg-white rounded-full flex items-center justify-center ios-shadow text-brand-600 active:scale-95 transition-transform"
-        >
-          <Plus size={20} />
-        </Link>
+        {isAdmin && (
+          <Link
+            href="/recipes/new"
+            className="mt-1 w-10 h-10 bg-white rounded-full flex items-center justify-center ios-shadow text-brand-600 active:scale-95 transition-transform"
+          >
+            <Plus size={20} />
+          </Link>
+        )}
       </header>
 
       {/* Summary Box */}
@@ -176,7 +182,13 @@ export const RecipesTab = ({ ingredientCount, urgentCount }: RecipesTabProps) =>
           </div>
         ) : (
           sorted.map(recipe => (
-            <RecipeCard key={recipe.id} recipe={recipe} from="recipes" />
+            <RecipeCard
+                key={recipe.id}
+                recipe={recipe}
+                from="recipes"
+                isAdmin={isAdmin}
+                onDelete={handleDelete}
+              />
           ))
         )}
       </div>

@@ -27,6 +27,7 @@ export type RecommendedRecipe = {
   id: string;
   title: string;
   image_url: string | null;
+  isAuthenticated: boolean;
   score: number;
   matchRate: number;          // 0~100 정수
   totalIngredients: number;

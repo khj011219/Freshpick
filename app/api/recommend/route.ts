@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 // ─── DB row types ───────────────────────────────────────────────────────────
@@ -47,41 +47,50 @@ type RecommendationResult = {
 
 // ─── Route handler ───────────────────────────────────────────────────────────
 
-export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const accessToken = authHeader.slice(7);
-  const supabase = createClient(accessToken);
+export async function GET(_request: NextRequest) {
+  const supabase = await createClient();
 
   const {
     data: { user },
-    error: authError,
   } = await supabase.auth.getUser();
 
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { data: recipes, error: recipesError } = await supabase
+    .from("recipes")
+    .select("*, recipe_ingredients(*)");
+
+  if (recipesError) {
+    return NextResponse.json(
+      { error: "Failed to fetch recipes" },
+      { status: 500 }
+    );
   }
 
-  const [
-    { data: ingredients, error: ingredientsError },
-    { data: recipes, error: recipesError },
-  ] = await Promise.all([
-    supabase.from("ingredients").select("*").eq("user_id", user.id),
-    supabase.from("recipes").select("*, recipe_ingredients(*)"),
-  ]);
+  // 비로그인: 레시피 목록만 반환 (개인화 데이터 없음)
+  if (!user) {
+    const results = ((recipes as DbRecipe[]) ?? []).map((recipe) => ({
+      recipe_id: recipe.id,
+      title: recipe.title,
+      description: recipe.description,
+      image_url: recipe.image_url,
+      is_authenticated: false,
+      score: 0,
+      match_rate: 0,
+      total_ingredients: recipe.recipe_ingredients?.length ?? 0,
+      matched_ingredients: 0,
+      missing_ingredients: [],
+      expiring_ingredients: [],
+    }));
+    return NextResponse.json(results);
+  }
+
+  const { data: ingredients, error: ingredientsError } = await supabase
+    .from("ingredients")
+    .select("*")
+    .eq("user_id", user.id);
 
   if (ingredientsError) {
     return NextResponse.json(
       { error: "Failed to fetch ingredients" },
-      { status: 500 }
-    );
-  }
-  if (recipesError) {
-    return NextResponse.json(
-      { error: "Failed to fetch recipes" },
       { status: 500 }
     );
   }
@@ -153,6 +162,7 @@ export async function GET(request: NextRequest) {
       title: recipe.title,
       description: recipe.description,
       image_url: recipe.image_url,
+      is_authenticated: true,
       score,
       match_rate: Math.round(matchRate * 100) / 100,
       total_ingredients: totalCount,
